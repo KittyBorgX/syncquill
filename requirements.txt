@@ -1,0 +1,4 @@
+google-api-python-client==2.126.0
+google_auth_oauthlib==1.2.0
+google-cloud-bigquery==3.20.1
+python-dotenv==1.0.1
