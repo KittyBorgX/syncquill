@@ -2,9 +2,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from google.cloud import bigquery
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 import pickle
 import os.path
+import os
 
 
 def authenticate():
@@ -56,7 +57,7 @@ def google_sheets_data(service, spreadsheet_id, range_name):
     values.pop(0)
     return cols, values
 
-def update_bigquery(client, dataset_id, table_id, changes):
+def update_bigquery(client, dataset_id, table_id, changes, schema):
     for change in changes:
         if(change['type'] == 'diff'): 
             query = f"""
@@ -66,6 +67,19 @@ def update_bigquery(client, dataset_id, table_id, changes):
             """
             print("Updated bigquery for change - ", change)
             client.query(query).result()
+        elif change['type'] == 'extra_row':
+            converted_rows = [dict(zip(schema, row)) for row in change['rows']]
+            job_config = bigquery.LoadJobConfig()
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
+            table_ref = client.dataset(dataset_id).table(table_id)
+            job = client.load_table_from_json(converted_rows, table_ref, job_config=job_config)
+            job.result()
+            print("Rows inserted successfully into BigQuery.")
+        elif change['type'] == 'del_row':
+            for row in change['rows']:
+                query = f"DELETE FROM `{dataset_id}.{table_id}` WHERE slno = {row[0]}"
+                query_job = client.query(query).result()
+                print(f"Row with serial number '{row[0]}' deleted successfully from BigQuery.")
 
 def compare_data(list1, list2, cols):
     # Convert all elements of both the lists to strings since bigquery results store the serial numbers as integers
@@ -77,7 +91,7 @@ def compare_data(list1, list2, cols):
 
     if len(list1) > len(list2):
         extra_rows = list1[len(list2):]
-        changes.append({'type': 'extra_row', 'rows': extra_rows})
+        changes.append({'type': 'del_row', 'rows': extra_rows})
         
     if len(list2) > len(list1):
         extra_rows = list2[len(list1):]
@@ -93,23 +107,23 @@ def compare_data(list1, list2, cols):
 
 def main():
     sheets_service, bq_client = authenticate()
-    config = dotenv_values(".env") 
+    load_dotenv()
+    spreadsheet_id = os.environ["spreadsheet_id"]
+    sheet_name = os.environ["sheet_name"]
+    dataset_id = os.environ["dataset_id"]
+    table_id = os.environ["table_id"]
 
-    spreadsheet_id = config["spreadsheet_id"]
-    sheet_name = config["sheet_name"]
-    dataset_id = config["dataset_id"]
-    table_id = config["table_id"]
+    cols, sheets_dat = google_sheets_data(sheets_service, spreadsheet_id, sheet_name)
+    bigquery_dat = bigquery_data(bq_client, dataset_id, table_id)
 
-    cols, data = google_sheets_data(sheets_service, spreadsheet_id, sheet_name)
-    previous_data = bigquery_data(bq_client, dataset_id, table_id)
-
-    changes = compare_data(previous_data, data, cols)
+    changes = compare_data(bigquery_dat, sheets_dat, cols)
     print("-------------- Changes ---------------")
-    print(changes)
+    for element in changes:
+        print(element)
     print("--------------------------------------")
 
     if changes:
-        update_bigquery(bq_client, dataset_id, table_id, changes)
+        update_bigquery(bq_client, dataset_id, table_id, changes, cols)
 
 if __name__ == '__main__':
     main()
