@@ -4,6 +4,12 @@ Sync data between Google Sheets and Bigquery Database
 ### What is this? 
 This is a tool to make update data into bigquery directly from google sheets. It's helpful for non-software clients who need to update the database (existing) without having to learn and use DML or SQL. Currently used interally for a project.
 
+### Features:
+
+- Edit a cell in Google Sheets and this tool will update in BigQuery.
+- Add a row in Google Sheets and this tool will add the row in BigQuery.
+- Delete a row in Google Sheets and this tool will delete the row in BigQuery.
+
 ### Steps (More details with links coming soon but here's an overview)
 
 1. Create a Google Cloud project if you haven't already
