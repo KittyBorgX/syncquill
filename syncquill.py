@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import pickle
 import os.path
 import os
-
+import argparse
 
 def authenticate():
     SCOPES_SHEETS = ['https://www.googleapis.com/auth/spreadsheets']
@@ -103,15 +103,29 @@ def compare_data(list1, list2, cols):
                 changes.append({'type': 'diff', 'changes': {'slno': list1[i][0], 'col': cols[j], 'old_value': list1[i][j], 'new_value': list2[i][j]}})
     return changes
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Your tool description here")
 
+    parser.add_argument("--spreadsheet_id", help="ID of the spreadsheet.")
+    parser.add_argument("--sheet_name", help="Name of the sheet. Can include the range as well.")
+    parser.add_argument("--dataset_id", help="ID of the bigquery dataset.")
+    parser.add_argument("--table_id", help="ID of the bigquery table inside the given dataset.")
+
+    return parser.parse_args()
+
+def load_env_or_args(arg_value, env_var_name):
+    if arg_value is None:
+        return os.environ[f"{env_var_name}"]
+    return arg_value
 
 def main():
     sheets_service, bq_client = authenticate()
     load_dotenv()
-    spreadsheet_id = os.environ["spreadsheet_id"]
-    sheet_name = os.environ["sheet_name"]
-    dataset_id = os.environ["dataset_id"]
-    table_id = os.environ["table_id"]
+    args = parse_arguments()
+    spreadsheet_id = load_env_or_args(args.spreadsheet_id, "spreadsheet_id")
+    sheet_name = load_env_or_args(args.sheet_name, "sheet_name")
+    dataset_id = load_env_or_args(args.dataset_id, "dataset_id")
+    table_id = load_env_or_args(args.table_id, "table_id")
 
     cols, sheets_dat = google_sheets_data(sheets_service, spreadsheet_id, sheet_name)
     bigquery_dat = bigquery_data(bq_client, dataset_id, table_id)
