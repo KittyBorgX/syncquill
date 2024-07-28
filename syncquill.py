@@ -3,27 +3,31 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from google.cloud import bigquery
 from dotenv import load_dotenv
+import pandas as pd
 import pickle
-import os.path
+import os
 import argparse
+
+TOKEN_PICKLE_PATH = "token.pickle"
+CREDS_PATH = "credentials.json"
 
 def authenticate():
     SCOPES_SHEETS = ['https://www.googleapis.com/auth/spreadsheets']
     SCOPES_BIGQUERY = ['https://www.googleapis.com/auth/bigquery']
 
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists(TOKEN_PICKLE_PATH):
+        with open(TOKEN_PICKLE_PATH, 'rb') as token:
             creds = pickle.load(token)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES_SHEETS + SCOPES_BIGQUERY)
+                CREDS_PATH, SCOPES_SHEETS + SCOPES_BIGQUERY)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('token.pickle', 'wb') as token:
+        with open(TOKEN_PICKLE_PATH, 'wb') as token:
             pickle.dump(creds, token)
 
     sheets_service = build('sheets', 'v4', credentials=creds)
@@ -38,7 +42,6 @@ def bigquery_data(bq_client: bigquery.Client, dataset_id, table_id):
         """
         query_job = bq_client.query(query)
         results = query_job.result()
-
         my_data = [row.values() for row in results]
         sorted_dat = sorted(my_data, key=lambda x: x[0])
         new_dat = [list(entry) for entry in sorted_dat]
