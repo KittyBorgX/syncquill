@@ -128,9 +128,26 @@ def compare_data(list1, list2, cols):
                 changes.append({'type': 'diff', 'changes': {'slno': list1[i][0], 'col': cols[j], 'old_value': list1[i][j], 'new_value': list2[i][j]}})
     return changes
 
+def upsert_table(cols, values, bq_client: bigquery.Client, dataset_id, table_id):
+    df = pd.DataFrame(values, columns=cols)
+
+    job_config = bigquery.LoadJobConfig(
+        # source_format=bigquery.SourceFormat.CSV,
+        # skip_leading_rows=1,  # Skip the header row in the CSV file
+        autodetect=True,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE
+    )
+    my_table_id = f"{dataset_id}.{table_id}"
+    load_job = bq_client.load_table_from_dataframe(df, my_table_id, job_config=job_config)
+    try:
+        load_job.result()
+        print("Successfully added/updated table.")
+    except Exception as e:
+        print("Error adding/updating table : ", e)
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Your tool description here")
-
+    parser.add_argument('action', choices=['sync', 'upsert'], help='Action to perform: sync or upsert')
     parser.add_argument("--spreadsheet_id", help="ID of the spreadsheet.")
     parser.add_argument("--sheet_name", help="Name of the sheet. Can include the range as well.")
     parser.add_argument("--dataset_id", help="ID of the bigquery dataset.")
@@ -205,18 +222,21 @@ def main():
     sheet_name = load_env_or_args(args.sheet_name, "sheet_name")
     dataset_id = load_env_or_args(args.dataset_id, "dataset_id")
     table_id = load_env_or_args(args.table_id, "table_id")
-
     cols, sheets_dat = google_sheets_data(sheets_service, spreadsheet_id, sheet_name)
-    bigquery_dat = bigquery_data(bq_client, dataset_id, table_id)
 
-    changes = compare_data(bigquery_dat, sheets_dat, cols)
-    print("-------------- Changes ---------------")
-    for element in changes:
-        print(element)
-    print("--------------------------------------")
+    if args.action == 'sync':
+        bigquery_dat = bigquery_data(bq_client, dataset_id, table_id)
 
-    if changes:
-        update_bigquery(bq_client, dataset_id, table_id, changes, cols)
+        changes = compare_data(bigquery_dat, sheets_dat, cols)
+        if changes:
+            pretty_print(changes, cols)
+            update_bigquery(bq_client, dataset_id, table_id, changes, cols)
+        else:
+            print("No changes.")
+    elif args.action == 'upsert':
+        upsert_table(cols, sheets_dat, bq_client, dataset_id, table_id)
+    else:
+        print("Invalid action. Use 'sync' or 'upsert'.")
 
 if __name__ == '__main__':
     main()
