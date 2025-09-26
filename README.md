@@ -1,5 +1,5 @@
 # syncquill
-Sync data between Google Sheets and Bigquery Database
+Sync data between Google Sheets and Google Cloud Bigquery Database
 
 ### What is this? 
 This is a tool to make update data into bigquery directly from google sheets. It's helpful for non-software clients who need to update the database (existing) without having to learn and use DML or SQL. Currently used interally for a project.
